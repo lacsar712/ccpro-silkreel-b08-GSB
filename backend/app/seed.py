@@ -56,4 +56,6 @@ async def seed_demo() -> None:
                         taken_at=now - timedelta(hours=2),
                     )
                 )
+                # 种子汤温即一次落绪：版号与条数从首启起就对齐
+                basin.reading_version = 1
         await session.commit()

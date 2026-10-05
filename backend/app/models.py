@@ -43,6 +43,8 @@ class Basin(Base):
     code: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(20), default=STATUS_SOAKING)
     ring_index: Mapped[int] = mapped_column(Integer, default=0)
+    # 每落绪一次（登记一条汤温）加 1；角标与落绪累计都以汤温条数为准
+    reading_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     notes: Mapped[str] = mapped_column(Text, default="")
     filature: Mapped[Filature] = relationship(back_populates="basins")
     readings: Mapped[list["BathReading"]] = relationship(back_populates="basin")

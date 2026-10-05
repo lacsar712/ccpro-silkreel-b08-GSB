@@ -43,6 +43,22 @@ h1 { font-weight: 600; letter-spacing: 0.08em; }
   justify-content: center;
   font-size: 13px;
 }
+.basin .badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 13px;
+  background: #fff;
+  color: #8a1c10;
+  border: 2px solid var(--gold);
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
 .basin.soaking { background: var(--soak); }
 .basin.reeling { background: var(--reel); }
 .basin.reeled { background: var(--done); }
@@ -60,4 +76,19 @@ button, input {
 .err { color: #b42318; }
 .hint { color: #6b5a48; font-size: 0.92em; }
 label { display: block; margin: 8px 0; }
-.topbar { display: flex; justify-content: space-between; align-items: baseline; }
+.topbar { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.topnav { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.topnav button.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+.totals-head { display: flex; justify-content: space-between; align-items: center; }
+.totals table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+.totals th, .totals td {
+  border-bottom: 1px solid #e4d8bf;
+  padding: 8px 12px;
+  text-align: left;
+}
+.totals tfoot td { font-weight: 700; border-top: 2px solid var(--gold); }
+.totals .num { text-align: right; font-variant-numeric: tabular-nums; }
