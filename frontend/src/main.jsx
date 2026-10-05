@@ -44,76 +44,52 @@ function Login({ onOk }) {
   );
 }
 
-function Yard() {
-  const [board, setBoard] = useState(null);
+function Yard({ board, onReadingLogged, onStatusChanged }) {
   const [picked, setPicked] = useState(null);
   const [temp, setTemp] = useState("40");
   const [err, setErr] = useState("");
 
-  async function refresh() {
-    const data = await api("/api/board");
-    setBoard(data);
-    if (picked) {
-      setPicked(data.basins.find((b) => b.id === picked.id) || data.basins[0]);
-    }
-  }
-
   useEffect(() => {
-    refresh().catch((e) => setErr(e.message));
-  }, []);
-
-  if (!board) {
-    return (
-      <div class="yard">
-        {err || "装载环盆…"}
-      </div>
-    );
-  }
+    if (picked) {
+      setPicked(board.basins.find((b) => b.id === picked.id) || null);
+    }
+  }, [board]);
 
   const n = board.basins.length;
+
   async function writeTemp() {
     setErr("");
     try {
-      const row = await api(`/api/basins/${picked.id}/readings`, {
+      await api(`/api/basins/${picked.id}/readings`, {
         method: "POST",
         body: JSON.stringify({ waterTempC: Number(temp) }),
       });
-      await refresh();
-      setPicked(row);
+      await onReadingLogged();
     } catch (ex) {
       setErr(ex.message);
+      // 登记被拒（如交叉登记冲突）也要重新对齐库，角标与累计专页不留在旧数上
+      try {
+        await onReadingLogged();
+      } catch (_) {
+        /* 保留原错误提示 */
+      }
     }
   }
   async function setStatus(status) {
     setErr("");
     try {
-      const row = await api(`/api/basins/${picked.id}/status`, {
+      await api(`/api/basins/${picked.id}/status`, {
         method: "POST",
         body: JSON.stringify({ status }),
       });
-      await refresh();
-      setPicked(row);
+      await onStatusChanged();
     } catch (ex) {
       setErr(ex.message);
     }
   }
 
   return (
-    <div class="yard">
-      <div class="topbar">
-        <div>
-          <h1>{board.filature}</h1>
-          <p>{board.riverside} · 点盆登记汤温；已缫完须最近汤温 38～42℃</p>
-        </div>
-        <button
-          onClick={() => {
-            clearToken();
-            location.reload();
-          }}
-        >
-          退出
-        </button>
-      </div>
+    <div>
       <div class="ring">
         {board.basins.map((b, i) => {
           const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
@@ -126,6 +102,9 @@ function Yard() {
               style={{ left: `${left}%`, top: `${top}%` }}
               onClick={() => setPicked(b)}
             >
+              <span class="badge" title="落绪次数">
+                {b.dropCount}
+              </span>
               <strong>{b.code}</strong>
               <span>{STATUS_LABEL[b.status]}</span>
             </button>
@@ -137,7 +116,9 @@ function Yard() {
           <h3>
             {picked.code} · {STATUS_LABEL[picked.status]}
           </h3>
-          <p>最近汤温：{picked.latestTempC ?? "无"} ℃ · 记录 {picked.readingCount} 次</p>
+          <p>
+            最近汤温：{picked.latestTempC ?? "无"} ℃ · 记录 {picked.readingCount} 次 · 落绪 {picked.dropCount} 次
+          </p>
           <input value={temp} onInput={(e) => setTemp(e.target.value)} />
           <button onClick={writeTemp}>登记汤温</button>
           <div>
@@ -152,9 +133,110 @@ function Yard() {
   );
 }
 
+function Drops({ drops }) {
+  return (
+    <div class="drops">
+      <h2>落绪累计</h2>
+      <p class="hint">按盆列出落绪次数，与环盆作业台角标同库同数，两边差为 0。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>盆位</th>
+            <th>落绪次数</th>
+          </tr>
+        </thead>
+        <tbody>
+          {drops.items.map((item) => (
+            <tr key={item.basinId}>
+              <td>{item.code}</td>
+              <td>{item.dropCount}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>合计</td>
+            <td>{drops.total}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function Shell() {
+  const [view, setView] = useState("yard");
+  const [board, setBoard] = useState(null);
+  const [drops, setDrops] = useState(null);
+  const [err, setErr] = useState("");
+
+  async function refreshBoard() {
+    setBoard(await api("/api/board"));
+  }
+  async function refreshDrops() {
+    setDrops(await api("/api/drops"));
+  }
+  // 登记汤温后两侧一起跟上库：作业台角标与落绪累计专页同时重取，只刷一侧算错
+  async function refreshAll() {
+    await Promise.all([refreshBoard(), refreshDrops()]);
+  }
+
+  useEffect(() => {
+    refreshAll().catch((e) => setErr(e.message));
+  }, []);
+
+  async function switchView(next) {
+    setErr("");
+    setView(next);
+    try {
+      await refreshAll();
+    } catch (e) {
+      setErr(e.message);
+    }
+  }
+
+  return (
+    <div class="yard">
+      <div class="topbar">
+        <div>
+          <h1>{board ? board.filature : "江口缫丝坞"}</h1>
+          <p>
+            {board ? `${board.riverside} · ` : ""}
+            点盆登记汤温；已缫完须最近汤温 38～42℃
+          </p>
+        </div>
+        <nav class="topnav">
+          <button class={view === "yard" ? "active" : ""} onClick={() => switchView("yard")}>
+            环盆作业台
+          </button>
+          <button class={view === "drops" ? "active" : ""} onClick={() => switchView("drops")}>
+            落绪累计
+          </button>
+          <button
+            onClick={() => {
+              clearToken();
+              location.reload();
+            }}
+          >
+            退出
+          </button>
+        </nav>
+      </div>
+      {err && <p class="err">{err}</p>}
+      {!board || !drops ? (
+        <p>{err ? "" : "装载环盆…"}</p>
+      ) : view === "yard" ? (
+        <Yard board={board} onReadingLogged={refreshAll} onStatusChanged={refreshBoard} />
+      ) : (
+        <Drops drops={drops} />
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [ready, setReady] = useState(Boolean(token()));
-  return ready ? <Yard /> : <Login onOk={() => setReady(true)} />;
+  return ready ? <Shell /> : <Login onOk={() => setReady(true)} />;
 }
 
 render(<App />, document.getElementById("app"));

@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -33,6 +33,15 @@ class BasinRepo:
             .where(Basin.id == basin_id)
         )
         return result.scalar_one_or_none()
+
+    async def lock_basin(self, basin_id: int) -> bool:
+        """盆级咨询锁：两名工交叉给同一盆登记时，只放行先拿到锁的一笔，
+        后到的一笔整笔回绝、落绪计数只加 1。锁随事务提交/回滚释放，
+        错开的顺序登记互不影响。须在登记事务里最先调用。"""
+        got = await self.session.execute(
+            select(func.pg_try_advisory_xact_lock(basin_id))
+        )
+        return bool(got.scalar())
 
     async def add_reading(self, basin: Basin, temp_c: float, operator: str) -> BathReading:
         row = BathReading(basin=basin, water_temp_c=temp_c, operator=operator)
